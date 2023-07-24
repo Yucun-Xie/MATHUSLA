@@ -88,7 +88,7 @@ void LYSimPrimaryGeneratorAction::RandomizePosition()
     // pos->SetCentreCoords(G4ThreeVector(x, 0, y));
 
     pos->SetPosRot2(G4ThreeVector(0., -1, 0));//test
-    pos->SetCentreCoords(G4ThreeVector(_beamx, 0.7, _beamy));// at the upper bound of fiber
+    pos->SetCentreCoords(G4ThreeVector(_beamx, 4.0*CLHEP::mm, _beamy));// at the upper bound of fiber
 
     // std::cout<<"z/2: "<<z/2<<std::endl;
     // std::cout<<"("<<x<<" 0 "<<y<<")"<<std::endl;
@@ -98,7 +98,7 @@ void LYSimPrimaryGeneratorAction::RandomizePosition()
     ang->SetAngDistType("iso");
     ang->SetMinTheta(CLHEP::pi - _open_angle);
     ang->SetMaxTheta(CLHEP::pi);
-    double openangle=1.0;
+    double openangle=1.4;
     ang->SetMinTheta(CLHEP::pi/2-openangle); // try different value from 1.0 to 1.4
     ang->SetMaxTheta(CLHEP::pi/2+openangle);
     ang->SetMinPhi(CLHEP::pi/2-openangle);
