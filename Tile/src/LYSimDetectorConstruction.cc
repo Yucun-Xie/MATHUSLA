@@ -201,7 +201,74 @@ LYSimDetectorConstruction::Construct()
 
   G4VPhysicalVolume *physWorld = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), logicWorld, "World", 0, false, 0, checkOverlaps);
 
+  ///////////////////////////////////////////////////////////////////////////////
+  // wrapping or clad
+  ///////////////////////////////////////////////////////////////////////////////
+  G4VSolid *solidHoleBound;
+  // Set hole shape
+  if (_holeshape == 0)
+    solidHoleBound = new G4Tubs("TileHole", 0, _hole_radius, _tilez, 0, 2 * pi);
+  else if (_holeshape == 1)
+    solidHoleBound = new G4Box("TileHole", _hole_radius, _hole_radius, _tilez);
+  else if (_holeshape == 2)
+    solidHoleBound = new G4EllipticalTube("TileHole", 1.2, _hole_radius, _tilez);
+
+  G4LogicalVolume *logicWrap;
+  G4LogicalVolume *logicWrapface;
+  G4VPhysicalVolume *physWrap3;
+  G4VPhysicalVolume *physWrap4;
+  // set wrap at side, no end covering
+  if (_handwrap)
+  {
+    // handwrap, with air gap
+    G4VSolid *solidWrap0 = ConstructHollowWrapSolid();
+    G4VSolid *solidWrap1 = new G4SubtractionSolid("solidWrap", solidWrap0, solidHoleBound, 0, G4ThreeVector(_hole_x1, 0, 0));
+    // second hole
+    // G4VSolid *solidWrap = new G4SubtractionSolid("solidWrap", solidWrap1, solidHoleBound, 0, G4ThreeVector(_hole_x2, 0, 0));
+    // logicWrap = new G4LogicalVolume(solidWrap, fEpoxy, "Wrap");
+    logicWrap = new G4LogicalVolume(solidWrap1, fEpoxy, "Wrap"); // comment this line when second hole enabled
+    G4VPhysicalVolume *physWrap = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), logicWrap, "Wrap", logicWorld, false, 0, checkOverlaps);
+    G4LogicalSkinSurface *WrapSurface = new G4LogicalSkinSurface("WrapSurface", logicWrap, fESROpSurface);
+  }
+  else
+  {
+    // clad, no air gap
+    G4VSolid *solidExtrusion = ConstructHollowWrapCladSolid();
+    logicWrap = new G4LogicalVolume(solidExtrusion, fcoating, "Extrusion");
+    G4VPhysicalVolume *physWrap = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), logicWrap, "Wrap", logicWorld, false, 0, checkOverlaps);
+    G4LogicalSkinSurface *WrapSurface = new G4LogicalSkinSurface("WrapSurface", logicWrap, fTiO2Surface);//surface use clading 
+  }
   
+  ///////////////////////////////////////////////////////////////////////////////
+  // extruded scintillator
+  ///////////////////////////////////////////////////////////////////////////////
+  G4VSolid *solidTile = ConstructTrapazoidSolid("TileTrap", _tilex, _tiley, _tilez, _tile_x1, _tile_x2);
+  G4VSolid *tileBulk1 = new G4SubtractionSolid("TileSolid_Bulk", solidTile, solidHoleBound, 0, G4ThreeVector(_hole_x1, 0, 0));
+  // second hole ----------
+  // G4VSolid *tileBulk = new G4SubtractionSolid("TileSolid_Bulk", tileBulk1, solidHoleBound, 0, G4ThreeVector(_hole_x2, 0, 0));
+  // G4LogicalVolume *logicTileBulk = new G4LogicalVolume(tileBulk, fEJ200, "TileBulkLogic");
+  //----------------
+  G4LogicalVolume *logicTileBulk = new G4LogicalVolume(tileBulk1, fEJ200, "TileBulkLogic"); // comment this line when second hole enabled
+  G4VPhysicalVolume *physTileBulk = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), logicTileBulk, "TileBulkPhysic", logicWorld, false, 0, checkOverlaps);
+
+  // set wrap at front/back ends
+  if(_coverends){
+
+    G4VSolid *wrapface = ConstructTrapazoidSolid("Wrapface", _tilex, _tiley, wrapthickness, 0, 0);
+    G4VSolid *solidWrapface = new G4SubtractionSolid("solidWrapface", wrapface, solidHoleBound, 0, G4ThreeVector(_hole_x1, 0, 0));
+    logicWrapface = new G4LogicalVolume(solidWrapface, fEpoxy, "Wrapface");
+    G4LogicalSkinSurface *WrapfaceSurface = new G4LogicalSkinSurface("WrapfaceSurface", logicWrapface, ffrontendSurface); // define surface at end 
+
+    physWrap3 = new G4PVPlacement(0, G4ThreeVector(0, 0, _tilez * 0.5 + wrapthickness * 0.5), logicWrapface, "Wrapface3", logicWorld, false, 0, checkOverlaps);
+    physWrap4 = new G4PVPlacement(0, G4ThreeVector(0, 0, -_tilez * 0.5 - wrapthickness * 0.5), logicWrapface, "Wrapface4", logicWorld, false, 0, checkOverlaps);
+    
+    new G4LogicalBorderSurface("surfacewrapout1", physWrap3, physTileBulk, MakeS_Absorbing());
+    new G4LogicalBorderSurface("surfacewrapout2", physTileBulk, physWrap3, MakeS_Absorbing());
+    new G4LogicalBorderSurface("surfacewrapout3", physTileBulk, physWrap4, MakeS_Absorbing());
+    new G4LogicalBorderSurface("surfacewrapout4", physWrap4, physTileBulk, MakeS_Absorbing());
+    
+  }
+
 
   ///////////////////////////////////////////////////////////////////////////////
   // fiber. single layer clad
@@ -230,7 +297,71 @@ LYSimDetectorConstruction::Construct()
     G4VPhysicalVolume *physWLSfiber_clad2 = new G4PVPlacement(0, G4ThreeVector(_hole_x1 + _WLS_xoff, 0, -_WLS_zoff), logicWLSfiber_clad2, "PhyhWLSfiber_cald2", logicWorld, false, 0, checkOverlaps);
   }
 
-  
+  ///////////////////////////////////////////////////////////////////////////////
+  // gap between fiber and hole
+  ///////////////////////////////////////////////////////////////////////////////
+  double holeinner = _WLSfiberR + _WLSfiber_clad_thick;
+  if (_cladlayer == 2)
+    holeinner += _WLSfiber_clad2_thick;
+  // circle
+  G4VSolid *solidHole;
+  if (_holeshape == 0)
+    solidHole = new G4Tubs("TileHole", 0, _hole_radius, _tilez * 0.5, 0, 2 * pi);
+  else if (_holeshape == 1)
+    solidHole = new G4Box("TileHole", _hole_radius, _hole_radius, _tilez * 0.5);
+  else if (_holeshape == 2)
+    solidHole = new G4EllipticalTube("TileHole",  1.2, _hole_radius, _tilez * 0.5);
+
+  G4VSolid *solidWLSfiberFrame = new G4Tubs("WLSFiberFrame", 0., holeinner, _WLSfiberZ * 0.5, 0., 2 * pi);
+  G4VSolid *solidHole_subs = new G4SubtractionSolid("TileHole_Subs", solidHole, solidWLSfiberFrame, 0, G4ThreeVector(_WLS_xoff, 0, 0));
+  //G4LogicalVolume *logicHole = new G4LogicalVolume(solidHole_subs, fAir, "Hole"); // normal air gap
+  G4LogicalVolume *logicHole = new G4LogicalVolume(solidHole_subs, fResin, "Hole");//testing gap material 
+
+  G4VPhysicalVolume *physHole = new G4PVPlacement(0, G4ThreeVector(_hole_x1, 0, 0), logicHole, "Hole", logicWorld, false, 0, checkOverlaps);
+
+  /*
+    if(_cladlayer==2){
+          new G4LogicalBorderSurface("surfacefiberOut", physWLSfiber,             physWLSfiber_clad, opSurface);
+          new G4LogicalBorderSurface("surfacefiberin", physWLSfiber_clad,             physWLSfiber, opSurface);
+          new G4LogicalBorderSurface("surfaceclad1Out", physWLSfiber_clad,             physWLSfiber_clad2, opSurface);
+          new G4LogicalBorderSurface("surfaceclad1in", physWLSfiber_clad2,             physWLSfiber_clad, opSurface);
+          new G4LogicalBorderSurface("surfaceClad2Out", physWLSfiber_clad2,             physHole, opSurface);
+          new G4LogicalBorderSurface("surfaceClad2In", physHole, physWLSfiber_clad2,             opSurface);
+    }else{
+          new G4LogicalBorderSurface("surfacefiber1Out", physWLSfiber,             physWLSfiber_clad, opSurface);
+          new G4LogicalBorderSurface("surfacefiber1in", physWLSfiber_clad,             physWLSfiber, opSurface);
+          new G4LogicalBorderSurface("surfaceClad1Out", physWLSfiber_clad,             physHole, opSurface);
+          new G4LogicalBorderSurface("surfaceClad1In",  physHole, physWLSfiber_clad,             opSurface);
+
+    }
+  */
+/* //remove clad
+  G4OpticalSurface *surface_IdealnonPolished = new G4OpticalSurface("IdealnonPolished", glisur, ground, dielectric_dielectric, 1);
+  double surface_IdealnonPolishedphoE2[2] = {1.0 * eV, 8.0 * eV};
+  double surface_IdealnonPolishedreflectivity[2] = {1 - _claddirt, 1 - _claddirt};
+  G4MaterialPropertiesTable *table = new G4MaterialPropertiesTable();
+  table->AddProperty("REFLECTIVITY", surface_IdealnonPolishedphoE2, surface_IdealnonPolishedreflectivity, 2);
+  // table->AddProperty( "TRANSMITTANCE", surface_IdealnonPolishedphoE2, surface_IdealnonPolishedreflectivity, 2 );
+  surface_IdealnonPolished->SetMaterialPropertiesTable(table);
+
+  new G4LogicalSkinSurface("fibercore", logicWLSfiber, opSurface);
+  // new G4LogicalSkinSurface( "fiberclad", logicWLSfiber_clad, surface_IdealnonPolished );
+
+  new G4LogicalBorderSurface("surfaceClad1Out", physWLSfiber_clad,     physHole, surface_IdealnonPolished);
+  new G4LogicalBorderSurface("surfaceClad1In", physHole, physWLSfiber_clad,     surface_IdealnonPolished);
+  // end here
+*///------------remove clad
+  // G4OpticalSurface* surface_p =MakeS_TiO2Surface();
+  // new G4LogicalBorderSurface("surfaceCladin", physWLSfiber_clad, physHole, surface_p);
+  /*new G4LogicalBorderSurface("surfacecladout", physWLSfiber_clad, physHole, opSurface);
+  new G4LogicalBorderSurface("surfacecladin", physHole, physWLSfiber_clad, opSurface);
+  new G4LogicalBorderSurface("surfacecoreout", physWLSfiber_clad, physWLSfiber, opSurface);
+  new G4LogicalBorderSurface("surfacecorein", physWLSfiber, physWLSfiber_clad, opSurface);
+  */
+  ///////////////////////////////////////////////////////////////////////////////
+  // realistic SiPM
+  ///////////////////////////////////////////////////////////////////////////////
+
   ///////////////////////////////////////////////////////////////////////////////
   // Simple version of SiPM
   ///////////////////////////////////////////////////////////////////////////////
@@ -271,7 +402,12 @@ LYSimDetectorConstruction::Construct()
   // Defining surfaces
   ///////////////////////////////////////////////////////////////////////////////
 
-  
+  // Tile surfaces
+  G4LogicalBorderSurface *TileBulkSurface =
+      new G4LogicalBorderSurface("TileBulkSurface", physTileBulk, physWorld, fTileBulkSurface);
+
+  // Other optical surfaces
+
   // Setting the sensitive detector
   if (!fPMTSD)
   {
@@ -303,8 +439,16 @@ LYSimDetectorConstruction::Construct()
   // logicSiPM->SetVisAttributes( SiPMVisAtt );
   logicSiPM->SetVisAttributes(G4VisAttributes::Invisible);
 
-  
-  
+  G4VisAttributes *ResinVisAtt = new G4VisAttributes(cyan);
+  ResinVisAtt->SetForceWireframe(true);
+  ResinVisAtt->SetVisibility(true);
+  logicHole->SetVisAttributes(ResinVisAtt);
+
+  G4VisAttributes *TileVisAtt = new G4VisAttributes(G4Colour(0, 0, 1.));
+  TileVisAtt->SetForceWireframe(true);
+  TileVisAtt->SetVisibility(true);
+  //logicTileBulk->SetVisAttributes(G4VisAttributes::Invisible);
+  logicTileBulk->SetVisAttributes(TileVisAtt);
 
   G4VisAttributes *fiberVisAtt = new G4VisAttributes(G4Colour(1, 0, 0));
   fiberVisAtt->SetForceWireframe(true);
@@ -320,7 +464,11 @@ LYSimDetectorConstruction::Construct()
   if (_cladlayer == 2)
     logicWLSfiber_clad2->SetVisAttributes(fiberVisAtt2);
 
-  
+  G4VisAttributes *WrapVisAtt = new G4VisAttributes(gray);
+  WrapVisAtt->SetForceWireframe(true);
+  WrapVisAtt->SetVisibility(true);
+  logicWrap->SetVisAttributes(WrapVisAtt);
+
   return physWorld;
 }
 
