@@ -456,6 +456,45 @@ G4Material *Make_Pethylene()
   return fPethylene;
 }
 
+
+G4Material *Make_Pethylene()
+{
+  // clad 1
+  G4double density;
+  std::vector<G4int> natoms;
+  std::vector<G4double> fractionMass;
+  std::vector<G4String> elements;
+
+  //--------------------------------------------------
+  // Cladding (polyethylene)
+  //--------------------------------------------------
+
+  elements.push_back("C");
+  natoms.push_back(2);
+  elements.push_back("H");
+  natoms.push_back(4);
+
+  density = 1.200 * g / cm3;
+
+  G4Material *fPethylene =
+      G4NistManager::Instance()->ConstructNewMaterial("Pethylene", elements, natoms, density);
+  G4double refractiveIndexClad1[] = {1.49, 1.49};
+  G4double energySmall[] = {1.0 * eV, 6.0 * eV};
+  G4double absClad[] = {20.0 * m, 20.0 * m};
+  G4MaterialPropertiesTable *mptClad1 = new G4MaterialPropertiesTable();
+  mptClad1->AddProperty("RINDEX", energySmall, refractiveIndexClad1, 2);
+  mptClad1->AddProperty("ABSLENGTH", energySmall, absClad, 2);
+
+  fPethylene->SetMaterialPropertiesTable(mptClad1);
+
+  elements.clear();
+  natoms.clear();
+
+  return fPethylene;
+}
+
+
+
 G4Material *Make_FPethylene()
 {
 
